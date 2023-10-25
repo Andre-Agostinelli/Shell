@@ -1,7 +1,6 @@
 #ifndef TOKENS_H
 #define TOKENS_H
 
-//put your function headers here
 #define MAX_INPUT_LENGTH 1024
 
 // Define a struct to hold tokens

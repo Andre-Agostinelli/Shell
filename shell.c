@@ -4,6 +4,7 @@
 // #include "shell.h"
 #include "tokens.h"
 
+// This drives the interactive shell
 int main(int argc, char **argv) {
     char input[MAX_INPUT_LENGTH];
     Token* tokens;

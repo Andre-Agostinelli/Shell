@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "tokens.h"
 
-// A demo program
+// A demo program JUST to show that the tokenizer function works (used for autograder)
 int main(int argc, char **argv) {
     char input[MAX_INPUT_LENGTH];
     fgets(input, MAX_INPUT_LENGTH, stdin);
