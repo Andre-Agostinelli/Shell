@@ -1,10 +1,11 @@
 #include <stdio.h>
-#include "shell.c" // Include the shell.c file
+#include <stdlib.h>
+#include "shell.h" // Include the shell.h file
 
 int main(int argc, char **argv) {
     char input[MAX_INPUT_LENGTH];
     fgets(input, MAX_INPUT_LENGTH, stdin);
-
+    
     Token* tokens = tokenize(input);
 
     int i = 0;
