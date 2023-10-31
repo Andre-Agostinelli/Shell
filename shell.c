@@ -104,13 +104,22 @@ void execute_preexisting_command(Token* tokens) {
 }
 
 // finds the semicolon and returns the index
-int find_sequencing(Token* tokens) {
-    for (int i = 0; i < sizeof(tokens) / MAX_INPUT_LENGTH; i++) {
-        if (tokens[i].value[0] == ';') {
+int find_sequencing(Token* tokens, int start, int end) {
+    for (int i = start; i < end; i++) {
+        if (strcmp(tokens[i].value, ";") == 0) {
             return i;
         }
     }
     return -1;
+}
+
+// counts all the elements in the array of tokens
+int count_tokens(Token* tokens) {
+    int count = 0;
+    while (tokens[count].value[0] != '\0') {
+        count++;
+    }
+    return count;
 }
 
 void handle_sequencing() {
@@ -119,11 +128,9 @@ void handle_sequencing() {
 
 void execute_recursive(Token* tokens, int start, int end) {
     
-
     // char* input_file = NULL;
     // char* output_file = NULL;
-
-    int seq_result = find_sequencing(tokens);
+    int seq_result = find_sequencing(tokens, start, end);
 
     if (seq_result != -1) {
         // Create a child process to execute the first part of the sequence
@@ -216,7 +223,7 @@ int main(int argc, char **argv) {
 
         tokens = tokenize(input);
 
-        execute_recursive(tokens, 0, sizeof(tokens) / MAX_INPUT_LENGTH);
+        execute_recursive(tokens, 0, count_tokens(tokens) - 1);
         free(tokens);
     }
 
