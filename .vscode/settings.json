@@ -1,6 +1,0 @@
-{
-    "files.associations": {
-        "tokens.h": "c",
-        "type_traits": "c"
-    }
-}
