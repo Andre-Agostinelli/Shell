@@ -70,6 +70,7 @@ void help_command() {
 void execute_preexisting_command(Token* tokens) {
     pid_t pid = fork();
 
+
     if (pid == 0) {
         // This is the child process
         int i = 0;
@@ -102,13 +103,63 @@ void execute_preexisting_command(Token* tokens) {
     }
 }
 
+// finds the semicolon and returns the index
+int find_sequencing(Token* tokens) {
+    for (int i = 0; i < sizeof(tokens) / MAX_INPUT_LENGTH; i++) {
+        if (tokens[i].value[0] == ';') {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void handle_sequencing() {
+
+}
 
 void execute_recursive(Token* tokens, int start, int end) {
+    
 
-    int i;
     // char* input_file = NULL;
     // char* output_file = NULL;
+
+    int seq_result = find_sequencing(tokens);
+
+    if (seq_result != -1) {
+        // Create a child process to execute the first part of the sequence
+        pid_t child_pid = fork();
+        if (child_pid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (child_pid == 0) {
+            // This is the child process
+            execute_recursive(tokens, start, seq_result - 1);
+            exit(0); // Child process exits
+        } else {
+            // This is the parent process
+            int status;
+            // Wait for the first child to finish
+            waitpid(child_pid, &status, 0);
+        }
+
+        // Create a child process to execute the second part of the sequence
+        child_pid = fork();
+        if (child_pid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (child_pid == 0) {
+            // This is the child process
+            execute_recursive(tokens, seq_result + 1, end);
+            exit(0); // Child process exits
+        } else {
+            // This is the parent process
+            int status;
+            // Wait for the second child to finish
+            waitpid(child_pid, &status, 0);
+        }
+    }
     
+    int i;
     for (i = start; i <= end; i++) {
 
         if (strcmp(tokens[i].value, "cd") == 0) { 
@@ -171,5 +222,6 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+
 
 
