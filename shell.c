@@ -1,66 +1,142 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-// #include "shell.h"
 #include "tokens.h"
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 
-void execute_tokens(Token* tokens, int start, int end) {
-    int i;
-    // Handle parentheses
-    for (i = start; i <= end; i++) {
-        // printf("Checking for parantheses\n");
-        if (strcmp(tokens[i].value, "(") == 0) {
-            // Find matching closing parenthesis
-            int j = i + 1; // Start from the token after the open parenthesis
-            int open_count = 1;
-            int close_count = 0;
-            while (open_count > close_count) {
-                if (strcmp(tokens[j].value, "(") == 0) {
-                    open_count++;
-                } else if (strcmp(tokens[j].value, ")") == 0) {
-                    close_count++;
-                }
-                j++;
-            }
-            printf("Executing inside parentheses:\n");
-            execute_tokens(tokens, i + 1, j - 2); // Execute inside the parentheses
-            i = j; // Skip the processed tokens
-        }
+// Handles the cd command
+void cd_command(char *directory) {
+    if (chdir(directory) != 0) {
+        perror("cd");
     }
-
-    // Handle semicolons
-    for (i = start; i <= end; i++) {
-        // printf("Checking for semicolons\n");
-        if (strcmp(tokens[i].value, ";") == 0) {
-            // Semicolon found, execute left side, then right side
-            printf("Executing left side of semicolon:\n");
-            execute_tokens(tokens, start, i - 1); // Left side
-            printf("Executing right side of semicolon:\n");
-            execute_tokens(tokens, i + 1, end); // Right side
-            return;
-        }
-    }
-
-    // Handle pipes
-    for (i = start; i <= end; i++) {
-        if (strcmp(tokens[i].value, "|") == 0) {
-            // Pipe found, execute left side, then right side
-            printf("Executing left side of pipe:\n");
-            execute_tokens(tokens, start, i - 1); // Left side
-            printf("Executing right side of pipe:\n");
-            execute_tokens(tokens, i + 1, end); // Right side
-            return;
-        }
-    }
-
-    // If we reach here, it means there are no more semicolons, pipes, or parentheses
-    // Handle the remaining tokens (e.g., executing external commands)
-
-
-    printf("Executing command:\n");
-    // execute_command(tokens, start, end);
 }
 
+// Handles the help command
+void help_command() {
+    printf("\'cd\': Change current directory.\n");
+    printf("\'source\': Execute commands from a file.\n");
+    printf("\'prev\': Repeat the previous command.\n");
+    printf("\'help\': Display help for built-in commands.\n");
+}
+
+// // Given a file name, returns a list of tokens that can be used to execute  
+// Token* source_command(char* filename) {
+//     FILE* file = fopen(filename, "r");
+
+//     if (file == NULL) {
+//         perror("Error opening file");
+//         return NULL;
+//     }
+
+//     char line[MAX_INPUT_LENGTH];
+//     Token* tokens = NULL;
+
+//     while (fgets(line, MAX_INPUT_LENGTH, file) != NULL) {
+//         printf("Executing: %s", line);
+
+//         // Tokenize the line and add tokens to the list
+//         Token* line_tokens = tokenize(line);
+
+//         if (tokens == NULL) {
+//             tokens = line_tokens;
+//         } else {
+//             tokens = realloc(tokens, (count_tokens(tokens) + count_tokens(line_tokens)) * sizeof(Token));
+//             if (tokens == NULL) {
+//                 perror("Error allocating memory");
+//                 exit(EXIT_FAILURE);
+//             }
+
+//             int i = count_tokens(tokens);
+//             int j = 0;
+
+//             while (line_tokens[j].value[0] != '\0') {
+//                 tokens[i++] = line_tokens[j++];
+//             }
+
+//             free(line_tokens);
+//         }
+//     }
+
+//     fclose(file);
+//     return tokens;
+// }
+
+
+// Executes a pre-existing command using execvp
+// Makes a child process so that we don't kill the shell
+void execute_preexisting_command(Token* tokens) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // This is the child process
+        int i = 0;
+        char* args[MAX_INPUT_LENGTH]; // Assuming a maximum length for arguments
+
+        while (tokens[i].type == 'W' && tokens[i].value[0] != '\0') {
+            args[i] = tokens[i].value;
+            i++;
+        }
+
+        args[i] = NULL; // Make sure the last element is NULL for execvp
+
+        if (execvp(args[0], args) == -1) {
+            perror("Error");
+            _exit(1); // Make sure to exit child on execvp failure
+        }
+    } else if (pid > 0) {
+        // This is the parent process
+        int status;
+        wait(&status); // Wait for the child process to finish
+        if (WIFEXITED(status)) {
+            if (WEXITSTATUS(status) != 0) {
+                printf("Child process exited with non-zero status %d\n", WEXITSTATUS(status));
+            }
+        } else {
+            printf("Child process did not exit normally\n");
+        }
+    } else {
+        perror("fork");
+    }
+}
+
+
+void execute_recursive(Token* tokens, int start, int end) {
+
+    int i;
+    // char* input_file = NULL;
+    // char* output_file = NULL;
+    
+    for (i = start; i <= end; i++) {
+
+        if (strcmp(tokens[i].value, "cd") == 0) { 
+            cd_command(tokens[i + 1].value);
+            return; 
+        } else if (strcmp(tokens[i].value, "source") == 0) {
+            // if (tokens[i + 1].type == 'W') {
+            //     Token* tokens_from_source = source_command(tokens[i + 1].value);
+            //     execute_recursive(tokens_from_source, 0, end);
+            //     free(tokens_from_source);
+            // } else {
+            //     printf("Usage: source <filename>\n");
+            // }
+            printf("Need to handle \'source\'\n");
+            return; 
+        } else if (strcmp(tokens[i].value, "prev") == 0) {
+            printf("Need to handle \'prev\'\n");
+            return; 
+        } else if (strcmp(tokens[i].value, "help") == 0) {
+            help_command(); 
+            return; 
+        }
+
+        // Handle pre-existing commands using execvp
+        execute_preexisting_command(tokens);
+        return; 
+    }
+}
 
 
 // This drives the interactive shell
@@ -89,17 +165,11 @@ int main(int argc, char **argv) {
 
         tokens = tokenize(input);
 
-        // for (int i = 0; *tokens[i].value != '\0'; i++) {
-        //     printf("Token %d: %s, Type: %c\n", i, tokens[i].value, tokens[i].type);
-        // }
-
-        // Now you can process and execute the command using the tokens.
-
-        execute_tokens(tokens, 0, sizeof(tokens) / MAX_INPUT_LENGTH);
-
+        execute_recursive(tokens, 0, sizeof(tokens) / MAX_INPUT_LENGTH);
         free(tokens);
     }
 
     return 0;
 }
+
 
