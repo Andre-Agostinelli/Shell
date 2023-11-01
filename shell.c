@@ -21,6 +21,7 @@ void handle_seq(Token* tokens, int start, int end, int index);
 void handle_pipe(Token* tokens, int start, int end, int index);
 void handle_input(Token* tokens, int start, int end, int index);
 void handle_output(Token* tokens, int start, int end, int index);
+void handle_prev(); 
 
 // This drives the interactive shell
 int main(int argc, char **argv) {
@@ -102,6 +103,13 @@ void source_command(char* filename) {
     if (line) {
         free(line);
     }
+}
+
+void handle_prev() {
+    // printf("Previous command: %s", prev_command);
+    Token* tokens = tokenize(prev_command);
+    execute_recursive(tokens, 0, count_tokens(tokens) - 1);
+    free(tokens);
 }
 
 
@@ -354,10 +362,7 @@ void execute_recursive(Token* tokens, int start, int end) {
                 source_command(tokens[i+1].value);
                 return; 
             } else if (strcmp(tokens[i].value, "prev") == 0) {
-                printf("Previous command: %s", prev_command);
-                Token* prev_tokens = tokenize(prev_command);
-                execute_recursive(prev_tokens, 0, count_tokens(prev_tokens) - 1);
-                free(prev_tokens);
+                handle_prev();
                 return;
             } else if (strcmp(tokens[i].value, "help") == 0) {
                 help_command(); 
