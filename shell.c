@@ -183,36 +183,34 @@ void execute_recursive(Token* tokens, int start, int end) {
             // Wait for the second child to finish
             waitpid(right_pid, &status, 0);
         }
-    }
-    
-    int i;
-    for (i = start; i <= end; i++) {
+    }    
+    else {
+        int i;
+        for (i = start; i <= end; i++) {
 
-        if (strcmp(tokens[i].value, "cd") == 0) { 
-            cd_command(tokens[i + 1].value);
+            if (strcmp(tokens[i].value, "cd") == 0) { 
+                cd_command(tokens[i + 1].value);
+                return; 
+            } else if (strcmp(tokens[i].value, "source") == 0) {
+                // if (tokens[i + 1].type == 'W') {
+                //     Token* tokens_from_source = source_command(tokens[i + 1].value);
+                //     execute_recursive(tokens_from_source, 0, end);
+                //     free(tokens_from_source);
+                // } else {
+                //     printf("Usage: source <filename>\n");
+                // }
+                printf("Need to handle \'source\'\n");
+                return; 
+            } else if (strcmp(tokens[i].value, "prev") == 0) {
+                printf("Need to handle \'prev\'\n");
+                return; 
+            } else if (strcmp(tokens[i].value, "help") == 0) {
+                help_command(); 
+                return; 
+            }
+            execute_preexisting_command(tokens, start, end);
             return; 
-        } else if (strcmp(tokens[i].value, "source") == 0) {
-            // if (tokens[i + 1].type == 'W') {
-            //     Token* tokens_from_source = source_command(tokens[i + 1].value);
-            //     execute_recursive(tokens_from_source, 0, end);
-            //     free(tokens_from_source);
-            // } else {
-            //     printf("Usage: source <filename>\n");
-            // }
-            printf("Need to handle \'source\'\n");
-            return; 
-        } else if (strcmp(tokens[i].value, "prev") == 0) {
-            printf("Need to handle \'prev\'\n");
-            return; 
-        } else if (strcmp(tokens[i].value, "help") == 0) {
-            help_command(); 
-            return; 
-        }
-
-
-        // this is running again after both left and right children (BAD)
-        execute_preexisting_command(tokens, start, end);
-        return; 
+        }        
     }
 }
 
