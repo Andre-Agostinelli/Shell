@@ -8,6 +8,8 @@
 #include <sys/wait.h>
 #include <sys/stat.h>   // for chmod
 
+char prev_command[MAX_INPUT_LENGTH] = "";
+
 void cd_command(char *directory);
 void help_command();
 Token* extract_tokens(Token* original_tokens, int start, int end);
@@ -44,10 +46,10 @@ int main(int argc, char **argv) {
             break;
         }
 
-        tokens = tokenize(input);
-
-        execute_recursive(tokens, 0, count_tokens(tokens) - 1);
-        free(tokens);
+        tokens = tokenize(input); // tokenize the input command
+        execute_recursive(tokens, 0, count_tokens(tokens) - 1); // execute this command 
+        strcpy(prev_command, input); // Store the command in prev_command (for prev)
+        free(tokens); 
     }
 
     return 0;
@@ -366,8 +368,11 @@ void execute_recursive(Token* tokens, int start, int end) {
                 }
                 return;
             } else if (strcmp(tokens[i].value, "prev") == 0) {
-                printf("Need to handle \'prev\'\n");
-                return; 
+                printf("Previous command: %s", prev_command);
+                Token* prev_tokens = tokenize(prev_command);
+                execute_recursive(prev_tokens, 0, count_tokens(prev_tokens) - 1);
+                free(prev_tokens);
+                return;
             } else if (strcmp(tokens[i].value, "help") == 0) {
                 help_command(); 
                 return; 
