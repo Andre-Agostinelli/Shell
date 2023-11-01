@@ -6,7 +6,52 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/wait.h>
-// #include <sys/stat.h>
+#include <sys/stat.h>   // for chmod
+
+void cd_command(char *directory);
+void help_command();
+Token* extract_tokens(Token* original_tokens, int start, int end);
+void execute_preexisting_command(Token* originalTokens, int start, int end);
+void execute_recursive(Token* tokens, int start, int end);
+int find_char(Token* tokens, int start, int end, char* target);
+int count_tokens(Token* tokens);
+void handle_seq(Token* tokens, int start, int end, int index);
+void handle_pipe(Token* tokens, int start, int end, int index);
+void handle_input(Token* tokens, int start, int end, int index);
+void handle_output(Token* tokens, int start, int end, int index);
+
+// This drives the interactive shell
+int main(int argc, char **argv) {
+    char input[MAX_INPUT_LENGTH];
+    Token* tokens;
+
+    printf("Welcome to mini-shell.\n");
+
+    while (1) {
+        printf("shell $ ");
+
+        // Check if we reached the end of file (Ctrl-D)
+        if (fgets(input, MAX_INPUT_LENGTH, stdin) == NULL) {
+            if (feof(stdin)) {
+                printf("\nBye bye.\n");
+                break;
+            }
+        }
+
+        // Check if we exited
+        if (strcmp(input, "exit\n") == 0) {
+            printf("Bye bye.\n");
+            break;
+        }
+
+        tokens = tokenize(input);
+
+        execute_recursive(tokens, 0, count_tokens(tokens) - 1);
+        free(tokens);
+    }
+
+    return 0;
+}
 
 // Handles the cd command
 void cd_command(char *directory) {
@@ -143,18 +188,8 @@ int count_tokens(Token* tokens) {
     return count;
 }
 
-void execute_recursive(Token* tokens, int start, int end) {
-    
-    // char* input_file = NULL;
-    // char* output_file = NULL;
-    int seq_result = find_char(tokens, start, end, ";");
-    int pipe_result = find_char(tokens, start, end, "|");
-    int input_redirect = find_char(tokens, start, end, "<");
-    int output_redirect = find_char(tokens, start, end, ">");
-
-    // If a semicolon was found
-    if (seq_result != -1) {
-        // Create a child process to execute the first part of the sequence
+void handle_seq(Token* tokens, int start, int end, int index) {
+    // Create a child process to execute the first part of the sequence
         pid_t left_pid = fork();
         
         if (left_pid == -1) {
@@ -162,7 +197,7 @@ void execute_recursive(Token* tokens, int start, int end) {
             exit(EXIT_FAILURE);
         } else if (left_pid == 0) {
             // This is the child process (left part)
-            execute_recursive(tokens, start, seq_result - 1);
+            execute_recursive(tokens, start, index - 1);
             exit(0); // Child process exits
         } else {
             // This is the parent process
@@ -179,7 +214,7 @@ void execute_recursive(Token* tokens, int start, int end) {
             exit(EXIT_FAILURE);
         } else if (right_pid == 0) {
             // This is the child process (right part)
-            execute_recursive(tokens, seq_result + 1, end);
+            execute_recursive(tokens, index + 1, end);
             exit(0); // Child process exits
         } else {
             // This is the parent process
@@ -187,100 +222,133 @@ void execute_recursive(Token* tokens, int start, int end) {
             // Wait for the second child to finish
             waitpid(right_pid, &status, 0);
         }
+}
+
+void handle_pipe(Token* tokens, int start, int end, int index) {
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    pid_t left_pid = fork();
+
+    if (left_pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (left_pid == 0) {
+        // This is the child process (left part)
+        close(pipefd[0]); // Close read end of the pipe
+        dup2(pipefd[1], STDOUT_FILENO); // Redirect standard output to the write end of the pipe
+        close(pipefd[1]); // Close write end of the pipe
+        execute_recursive(tokens, start, index - 1); // Execute left side
+        exit(0); // Child process exits
+    } else {
+        // This is the parent process
+        close(pipefd[1]); // Close write end of the pipe
+        int status;
+        waitpid(left_pid, &status, 0);
+    }
+
+    pid_t right_pid = fork(); // create right process
+    if (right_pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (right_pid == 0) {
+        // This is the child process (right part)
+        close(pipefd[1]); // Close write end of the pipe
+        dup2(pipefd[0], STDIN_FILENO); // Redirect standard input to the read end of the pipe
+        close(pipefd[0]); // Close read end of the pipe
+        execute_recursive(tokens, index + 1, end); // Execute right side
+        exit(0); // Child process exits
+    } else {
+        // This is the parent process
+        close(pipefd[0]); // Close read end of the pipe
+        int status;
+        waitpid(right_pid, &status, 0);
+    }
+}
+
+void handle_input(Token* tokens, int start, int end, int index) {
+// Create a child process for input redirection
+    pid_t input_redirect_pid = fork();
+    if (input_redirect_pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (input_redirect_pid == 0) {
+        // This is the child process (input redirection)
+        int input_fd = open(tokens[index + 1].value, O_RDONLY);
+        if (input_fd == -1) {
+            perror("open");
+            exit(EXIT_FAILURE);
+        }
+
+        chmod(tokens[index + 1].value, 0666); // Read and write permissions for owner, group, and others
+
+        dup2(input_fd, STDIN_FILENO);
+        close(input_fd);
+        execute_recursive(tokens, start, index - 1);
+        exit(0); // Child process exits
+    } else {
+        // This is the parent process
+        int status;
+        waitpid(input_redirect_pid, &status, 0);
+    }
+}
+
+void handle_output(Token* tokens, int start, int end, int index) {
+// Create a child process for output redirection
+    pid_t output_redirect_pid = fork();
+    if (output_redirect_pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (output_redirect_pid == 0) {
+        // This is the child process (output redirection)
+        // int output_fd = open(tokens[output_redirect + 1].value, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        int output_fd = open(tokens[index + 1].value, O_WRONLY | O_CREAT | O_TRUNC);
+        if (output_fd == -1) {
+            perror("open");
+            exit(EXIT_FAILURE);
+        }
+
+        
+         // Set the file permissions to be readable and writable by all users
+        chmod(tokens[index + 1].value, 0666); // Read and write permissions for owner, group, and others
+
+        dup2(output_fd, STDOUT_FILENO);
+        close(output_fd);
+        execute_recursive(tokens, start, index - 1);
+        exit(0); // Child process exits
+    } else {
+        // This is the parent process
+        int status;
+        waitpid(output_redirect_pid, &status, 0);
+    }
+}
+
+
+void execute_recursive(Token* tokens, int start, int end) {
+    
+    // char* input_file = NULL;
+    // char* output_file = NULL;
+    int seq_result = find_char(tokens, start, end, ";");
+    int pipe_result = find_char(tokens, start, end, "|");
+    int input_redirect = find_char(tokens, start, end, "<");
+    int output_redirect = find_char(tokens, start, end, ">");
+
+    // If a semicolon was found
+    if (seq_result != -1) {
+        handle_seq(tokens, start, end, seq_result);
     }    
     else if (pipe_result != -1){
-            int pipefd[2];
-            if (pipe(pipefd) == -1) {
-                perror("pipe");
-                exit(EXIT_FAILURE);
-            }
-
-            pid_t left_pid = fork();
-
-            if (left_pid == -1) {
-                perror("fork");
-                exit(EXIT_FAILURE);
-            } else if (left_pid == 0) {
-                // This is the child process (left part)
-                close(pipefd[0]); // Close read end of the pipe
-                dup2(pipefd[1], STDOUT_FILENO); // Redirect standard output to the write end of the pipe
-                close(pipefd[1]); // Close write end of the pipe
-                execute_recursive(tokens, start, pipe_result - 1); // Execute left side
-                exit(0); // Child process exits
-            } else {
-                // This is the parent process
-                close(pipefd[1]); // Close write end of the pipe
-                int status;
-                waitpid(left_pid, &status, 0);
-            }
-
-            pid_t right_pid = fork(); // create right process
-            if (right_pid == -1) {
-                perror("fork");
-                exit(EXIT_FAILURE);
-            } else if (right_pid == 0) {
-                // This is the child process (right part)
-                close(pipefd[1]); // Close write end of the pipe
-                dup2(pipefd[0], STDIN_FILENO); // Redirect standard input to the read end of the pipe
-                close(pipefd[0]); // Close read end of the pipe
-                execute_recursive(tokens, pipe_result + 1, end); // Execute right side
-                exit(0); // Child process exits
-            } else {
-                // This is the parent process
-                close(pipefd[0]); // Close read end of the pipe
-                int status;
-                waitpid(right_pid, &status, 0);
-            
-        }
+        handle_pipe(tokens, start, end, pipe_result);
     }
     else if (input_redirect != -1) {
-        // Create a child process for input redirection
-        pid_t input_redirect_pid = fork();
-        if (input_redirect_pid == -1) {
-            perror("fork");
-            exit(EXIT_FAILURE);
-        } else if (input_redirect_pid == 0) {
-            // This is the child process (input redirection)
-            int input_fd = open(tokens[input_redirect + 1].value, O_RDONLY);
-            if (input_fd == -1) {
-                perror("open");
-                exit(EXIT_FAILURE);
-            }
-            dup2(input_fd, STDIN_FILENO);
-            close(input_fd);
-            execute_recursive(tokens, start, input_redirect - 1);
-            exit(0); // Child process exits
-        } else {
-            // This is the parent process
-            int status;
-            waitpid(input_redirect_pid, &status, 0);
-        }
+        handle_input(tokens, start, end, input_redirect);
     }
     else if (output_redirect != -1) {
-        // Create a child process for output redirection
-        pid_t output_redirect_pid = fork();
-        if (output_redirect_pid == -1) {
-            perror("fork");
-            exit(EXIT_FAILURE);
-        } else if (output_redirect_pid == 0) {
-            // This is the child process (output redirection)
-            // int output_fd = open(tokens[output_redirect + 1].value, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            int output_fd = open(tokens[output_redirect + 1].value, O_WRONLY | O_CREAT | O_TRUNC);
-            if (output_fd == -1) {
-                perror("open");
-                exit(EXIT_FAILURE);
-            }
-            dup2(output_fd, STDOUT_FILENO);
-            close(output_fd);
-            execute_recursive(tokens, start, output_redirect - 1);
-            exit(0); // Child process exits
-        } else {
-            // This is the parent process
-            int status;
-            waitpid(output_redirect_pid, &status, 0);
-        }
-    }
-    else {
+        handle_output(tokens, start, end, output_redirect);
+    } else {
         int i;
         for (i = start; i <= end; i++) {
 
@@ -308,40 +376,6 @@ void execute_recursive(Token* tokens, int start, int end) {
             return; 
         }        
     }
-}
-
-
-// This drives the interactive shell
-int main(int argc, char **argv) {
-    char input[MAX_INPUT_LENGTH];
-    Token* tokens;
-
-    printf("Welcome to mini-shell.\n");
-
-    while (1) {
-        printf("shell $ ");
-
-        // Check if we reached the end of file (Ctrl-D)
-        if (fgets(input, MAX_INPUT_LENGTH, stdin) == NULL) {
-            if (feof(stdin)) {
-                printf("\nBye bye.\n");
-                break;
-            }
-        }
-
-        // Check if we exited
-        if (strcmp(input, "exit\n") == 0) {
-            printf("Bye bye.\n");
-            break;
-        }
-
-        tokens = tokenize(input);
-
-        execute_recursive(tokens, 0, count_tokens(tokens) - 1);
-        free(tokens);
-    }
-
-    return 0;
 }
 
 
