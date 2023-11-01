@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/wait.h>
-#include <sys/stat.h>   // for chmod
+#include <sys/stat.h>   
 
 void cd_command(char *directory);
 void help_command();
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
         }
 
         tokens = tokenize(input);
-
+        
         execute_recursive(tokens, 0, count_tokens(tokens) - 1);
         free(tokens);
     }
@@ -68,47 +68,40 @@ void help_command() {
     printf("\'help\': Display help for built-in commands.\n");
 }
 
-// // Given a file name, returns a list of tokens that can be used to execute  
-// Token* source_command(char* filename) {
-//     FILE* file = fopen(filename, "r");
+void source_command(char* filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
 
-//     if (file == NULL) {
-//         perror("Error opening file");
-//         return NULL;
-//     }
+    char *line = NULL;
+    size_t len = 0;
 
-//     char line[MAX_INPUT_LENGTH];
-//     Token* tokens = NULL;
+    while (getline(&line, &len, file) != -1) {
+        // Remove the trailing newline character from the line
+        size_t line_length = strlen(line);
+        if (line_length > 0 && line[line_length - 1] == '\n') {
+            line[line_length - 1] = '\0';
+        }
 
-//     while (fgets(line, MAX_INPUT_LENGTH, file) != NULL) {
-//         printf("Executing: %s", line);
+        // Tokenize the line (you'll need to implement this)
+        Token* tokens = tokenize(line);
 
-//         // Tokenize the line and add tokens to the list
-//         Token* line_tokens = tokenize(line);
+        // Determine the start and end of the tokens for the execute_recursive function
+        int start = 0;
+        int end = count_tokens(tokens);
 
-//         if (tokens == NULL) {
-//             tokens = line_tokens;
-//         } else {
-//             tokens = realloc(tokens, (count_tokens(tokens) + count_tokens(line_tokens)) * sizeof(Token));
-//             if (tokens == NULL) {
-//                 perror("Error allocating memory");
-//                 exit(EXIT_FAILURE);
-//             }
+        // Execute the command using the execute_recursive function
+        execute_recursive(tokens, start, end);
+    }
 
-//             int i = count_tokens(tokens);
-//             int j = 0;
+    fclose(file);
+    if (line) {
+        free(line);
+    }
+}
 
-//             while (line_tokens[j].value[0] != '\0') {
-//                 tokens[i++] = line_tokens[j++];
-//             }
-
-//             free(line_tokens);
-//         }
-//     }
-
-//     fclose(file);
-//     return tokens;
-// }
 
 Token* extract_tokens(Token* original_tokens, int start, int end) {
     int num_tokens = end - start + 1; // Calculate the number of tokens to extract
@@ -356,14 +349,7 @@ void execute_recursive(Token* tokens, int start, int end) {
                 cd_command(tokens[i + 1].value);
                 return; 
             } else if (strcmp(tokens[i].value, "source") == 0) {
-                // if (tokens[i + 1].type == 'W') {
-                //     Token* tokens_from_source = source_command(tokens[i + 1].value);
-                //     execute_recursive(tokens_from_source, 0, end);
-                //     free(tokens_from_source);
-                // } else {
-                //     printf("Usage: source <filename>\n");
-                // }
-                printf("Need to handle \'source\'\n");
+                source_command(tokens[i+1].value);
                 return; 
             } else if (strcmp(tokens[i].value, "prev") == 0) {
                 printf("Need to handle \'prev\'\n");
