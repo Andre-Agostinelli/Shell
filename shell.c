@@ -123,7 +123,7 @@ void execute_preexisting_command(Token* originalTokens, int start, int end) {
     }
 }
 
-// finds the pipe and returns the index
+// finds the target char and returns the index
 int find_char(Token* tokens, int start, int end, char* target) {
     for (int i = start; i < end; i++) {
         if (strcmp(tokens[i].value, target) == 0) {
