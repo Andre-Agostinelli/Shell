@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+// #include <sys/stat.h>
 
 // Handles the cd command
 void cd_command(char *directory) {
@@ -148,6 +149,8 @@ void execute_recursive(Token* tokens, int start, int end) {
     // char* output_file = NULL;
     int seq_result = find_char(tokens, start, end, ";");
     int pipe_result = find_char(tokens, start, end, "|");
+    int input_redirect = find_char(tokens, start, end, "<");
+    int output_redirect = find_char(tokens, start, end, ">");
 
     // If a semicolon was found
     if (seq_result != -1) {
@@ -228,6 +231,53 @@ void execute_recursive(Token* tokens, int start, int end) {
                 int status;
                 waitpid(right_pid, &status, 0);
             
+        }
+    }
+    else if (input_redirect != -1) {
+        // Create a child process for input redirection
+        pid_t input_redirect_pid = fork();
+        if (input_redirect_pid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (input_redirect_pid == 0) {
+            // This is the child process (input redirection)
+            int input_fd = open(tokens[input_redirect + 1].value, O_RDONLY);
+            if (input_fd == -1) {
+                perror("open");
+                exit(EXIT_FAILURE);
+            }
+            dup2(input_fd, STDIN_FILENO);
+            close(input_fd);
+            execute_recursive(tokens, start, input_redirect - 1);
+            exit(0); // Child process exits
+        } else {
+            // This is the parent process
+            int status;
+            waitpid(input_redirect_pid, &status, 0);
+        }
+    }
+    else if (output_redirect != -1) {
+        // Create a child process for output redirection
+        pid_t output_redirect_pid = fork();
+        if (output_redirect_pid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (output_redirect_pid == 0) {
+            // This is the child process (output redirection)
+            // int output_fd = open(tokens[output_redirect + 1].value, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+            int output_fd = open(tokens[output_redirect + 1].value, O_WRONLY | O_CREAT | O_TRUNC);
+            if (output_fd == -1) {
+                perror("open");
+                exit(EXIT_FAILURE);
+            }
+            dup2(output_fd, STDOUT_FILENO);
+            close(output_fd);
+            execute_recursive(tokens, start, output_redirect - 1);
+            exit(0); // Child process exits
+        } else {
+            // This is the parent process
+            int status;
+            waitpid(output_redirect_pid, &status, 0);
         }
     }
     else {
