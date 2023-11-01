@@ -123,10 +123,10 @@ void execute_preexisting_command(Token* originalTokens, int start, int end) {
     }
 }
 
-// finds the semicolon and returns the index
-int find_sequencing(Token* tokens, int start, int end) {
+// finds the pipe and returns the index
+int find_char(Token* tokens, int start, int end, char* target) {
     for (int i = start; i < end; i++) {
-        if (strcmp(tokens[i].value, ";") == 0) {
+        if (strcmp(tokens[i].value, target) == 0) {
             return i;
         }
     }
@@ -146,7 +146,8 @@ void execute_recursive(Token* tokens, int start, int end) {
     
     // char* input_file = NULL;
     // char* output_file = NULL;
-    int seq_result = find_sequencing(tokens, start, end);
+    int seq_result = find_char(tokens, start, end, ";");
+    int pipe_result = find_char(tokens, start, end, "|");
 
     // If a semicolon was found
     if (seq_result != -1) {
@@ -184,6 +185,51 @@ void execute_recursive(Token* tokens, int start, int end) {
             waitpid(right_pid, &status, 0);
         }
     }    
+    else if (pipe_result != -1){
+            int pipefd[2];
+            if (pipe(pipefd) == -1) {
+                perror("pipe");
+                exit(EXIT_FAILURE);
+            }
+
+            pid_t left_pid = fork();
+
+            if (left_pid == -1) {
+                perror("fork");
+                exit(EXIT_FAILURE);
+            } else if (left_pid == 0) {
+                // This is the child process (left part)
+                close(pipefd[0]); // Close read end of the pipe
+                dup2(pipefd[1], STDOUT_FILENO); // Redirect standard output to the write end of the pipe
+                close(pipefd[1]); // Close write end of the pipe
+                execute_recursive(tokens, start, pipe_result - 1); // Execute left side
+                exit(0); // Child process exits
+            } else {
+                // This is the parent process
+                close(pipefd[1]); // Close write end of the pipe
+                int status;
+                waitpid(left_pid, &status, 0);
+            }
+
+            pid_t right_pid = fork(); // create right process
+            if (right_pid == -1) {
+                perror("fork");
+                exit(EXIT_FAILURE);
+            } else if (right_pid == 0) {
+                // This is the child process (right part)
+                close(pipefd[1]); // Close write end of the pipe
+                dup2(pipefd[0], STDIN_FILENO); // Redirect standard input to the read end of the pipe
+                close(pipefd[0]); // Close read end of the pipe
+                execute_recursive(tokens, pipe_result + 1, end); // Execute right side
+                exit(0); // Child process exits
+            } else {
+                // This is the parent process
+                close(pipefd[0]); // Close read end of the pipe
+                int status;
+                waitpid(right_pid, &status, 0);
+            
+        }
+    }
     else {
         int i;
         for (i = start; i <= end; i++) {
