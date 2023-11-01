@@ -64,10 +64,30 @@ void help_command() {
 //     return tokens;
 // }
 
+Token* extract_tokens(Token* original_tokens, int start, int end) {
+    int num_tokens = end - start + 1; // Calculate the number of tokens to extract
+
+    Token* extracted_tokens = malloc((num_tokens + 1) * sizeof(Token)); // Allocate memory for extracted tokens
+    if (extracted_tokens == NULL) {
+        perror("Memory allocation error");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = start; i <= end; i++) {
+        extracted_tokens[i - start] = original_tokens[i]; // Copy tokens from original list to extracted list
+    }
+
+    extracted_tokens[num_tokens].value[0] = '\0'; // Add a sentinel token with an empty value to mark the end
+
+    return extracted_tokens;
+}
 
 // Executes a pre-existing command using execvp
 // Makes a child process so that we don't kill the shell
-void execute_preexisting_command(Token* tokens) {
+void execute_preexisting_command(Token* originalTokens, int start, int end) {
+
+    Token* tokens = extract_tokens(originalTokens, start, end);
+
     pid_t pid = fork();
 
 
@@ -122,47 +142,46 @@ int count_tokens(Token* tokens) {
     return count;
 }
 
-void handle_sequencing() {
-
-}
-
 void execute_recursive(Token* tokens, int start, int end) {
     
     // char* input_file = NULL;
     // char* output_file = NULL;
     int seq_result = find_sequencing(tokens, start, end);
 
+    // If a semicolon was found
     if (seq_result != -1) {
         // Create a child process to execute the first part of the sequence
-        pid_t child_pid = fork();
-        if (child_pid == -1) {
+        pid_t left_pid = fork();
+        
+        if (left_pid == -1) {
             perror("fork");
             exit(EXIT_FAILURE);
-        } else if (child_pid == 0) {
-            // This is the child process
+        } else if (left_pid == 0) {
+            // This is the child process (left part)
             execute_recursive(tokens, start, seq_result - 1);
             exit(0); // Child process exits
         } else {
             // This is the parent process
             int status;
             // Wait for the first child to finish
-            waitpid(child_pid, &status, 0);
+            waitpid(left_pid, &status, 0);
         }
 
         // Create a child process to execute the second part of the sequence
-        child_pid = fork();
-        if (child_pid == -1) {
+        pid_t right_pid = fork();
+        
+        if (right_pid == -1) {
             perror("fork");
             exit(EXIT_FAILURE);
-        } else if (child_pid == 0) {
-            // This is the child process
+        } else if (right_pid == 0) {
+            // This is the child process (right part)
             execute_recursive(tokens, seq_result + 1, end);
             exit(0); // Child process exits
         } else {
             // This is the parent process
             int status;
             // Wait for the second child to finish
-            waitpid(child_pid, &status, 0);
+            waitpid(right_pid, &status, 0);
         }
     }
     
@@ -190,8 +209,9 @@ void execute_recursive(Token* tokens, int start, int end) {
             return; 
         }
 
-        // Handle pre-existing commands using execvp
-        execute_preexisting_command(tokens);
+
+        // this is running again after both left and right children (BAD)
+        execute_preexisting_command(tokens, start, end);
         return; 
     }
 }
