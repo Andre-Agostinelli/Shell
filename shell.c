@@ -10,6 +10,8 @@
 
 char prev_command[MAX_INPUT_LENGTH] = "";
 
+ssize_t getline(char **lineptr, size_t *n, FILE *stream); //getline workaround for implicit decleration but still uses built in...
+
 void cd_command(char *directory);
 void help_command();
 Token* extract_tokens(Token* original_tokens, int start, int end);
