@@ -105,6 +105,48 @@ class ShellTests(ShellTestCase):
         actual = self.run_shell(script)
         self.assertEqual(actual, "one\ntwo\nthree")
 
+    def test10(self):
+        """ Piping two echo commands """
+        script = "echo 'Hello' | echo 'World'"
+        actual = self.run_shell(script)
+        self.assertEqual(actual, "'World'")
+
+    def test11(self):
+        """ Redirecting input and output of an echo command """
+        script = "echo 'Redirected input' > output.txt < input.txt"
+        input_data = "This is redirected input."
+        with open("input.txt", "w") as f:
+            f.write(input_data)
+
+        self.run_shell(script)
+
+        with open("output.txt", "r") as f:
+            actual = f.read().strip()
+
+        self.assertEqual(actual, "'Redirected input'\nWelcome to mini-shell.\nshell $")
+
+    def test12(self):
+        """ Sequencing echo commands with input redirection """
+        script = "echo 'Before' ; echo 'Middle' ; echo 'After' < input.txt"
+        input_data = "This is redirected input."
+        with open("input.txt", "w") as f:
+            f.write(input_data)
+
+        actual = self.run_shell(script)
+        expected = "'Before'\n'Middle'\n'After'"
+        self.assertEqual(actual, expected)
+
+    def test13(self):
+        """ Sequencing an echo command writing to a file and piping into another command """
+        script = "echo 'Output to file' > output1.txt; cat output1.txt | grep 'Output'"
+
+        self.run_shell(script)
+
+        with open("output1.txt", "r") as f:
+            actual = f.read().strip()
+
+        self.assertEqual(actual, "'Output to file'\nWelcome to mini-shell.\nshell $")
+
 if __name__ == '__main__':
     print(f"-= {YELLOW}Running tests for {SHELL}{RESET} =-")
     unittest.main(testRunner = unittest.TextTestRunner(resultclass = PrettierTextTestResult))

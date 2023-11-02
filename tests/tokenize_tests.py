@@ -48,8 +48,42 @@ class ShellTests(ShellTestCase):
         self.assertEqual(
                 sh("echo 'foo \"Lorem ipsum dolor sit amet\" < bar \"consectetur (adipiscing; >elit\"' | ./tokenize"), 
                 "foo\nLorem ipsum dolor sit amet\n<\nbar\nconsectetur (adipiscing; >elit")
+                
+    def test07(self):
+        """Recognizes strings with escape sequences"""
+        self.assertEqual(
+                sh("echo '-e \"1\\n\"' | ./tokenize"), 
+                "-e\n1")
 
+    def test08(self):
+        """Recognizes strings with escape sequences"""
+        self.assertEqual(
+                sh("echo 'evenif\isseen newToken' | ./tokenize"), 
+                'evenif\\isseen\nnewToken')      
+    
+    def test9(self):
+        """Recognizes a simple non-special token within single quotes"""
+        self.assertEqual(sh("echo 'x' | ./tokenize"), "x")
 
+    def test10(self):
+        """Recognizes multiple non-special tokens within single quotes"""
+        self.assertEqual(sh("echo 'x y z' | ./tokenize"), "x\ny\nz")
+
+    def test11(self):
+        """Recognizes special characters within single quotes as tokens"""
+        self.assertEqual(sh("echo '(a|b)<c>' | ./tokenize"), "(\na\n|\nb\n)\n<\nc\n>")
+
+    def test12(self):
+        """Recognizes special characters as tokens within double quotes"""
+        self.assertEqual(sh('echo "(a|b)<c>" | ./tokenize'), "(\na\n|\nb\n)\n<\nc\n>")
+
+    def test13(self):
+        """Recognizes a string with escape sequences with \n and disregards next line"""
+        self.assertEqual(sh("echo 'This is a newline\t abcd \n echo 'not the same input'' | ./tokenize"), "This\nis\na\nnewline\nabcd")
+
+    def test14(self):
+        """Recognizes strings with escape sequences within double quotes"""
+        self.assertEqual(sh('echo "This is a \\t tab" | ./tokenize'), 'This\nis\na\ntab')
 
 if __name__ == '__main__':
     print(f"-= {YELLOW}Running tests for {TOKENIZE}{RESET} =-")
