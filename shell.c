@@ -155,7 +155,7 @@ void execute_preexisting_command(Token* originalTokens, int start, int end) {
         args[i] = NULL; // Make sure the last element is NULL for execvp
 
         if (execvp(args[0], args) == -1) {
-            perror("Error");
+            fprintf(stderr, "%s: command not found\n", args[0]);
             _exit(1); // Make sure to exit child on execvp failure
         }
     } else if (pid > 0) {
@@ -163,15 +163,13 @@ void execute_preexisting_command(Token* originalTokens, int start, int end) {
         int status;
         wait(&status); // Wait for the child process to finish
         if (WIFEXITED(status)) {
-            if (WEXITSTATUS(status) != 0) {
-                printf("Child process exited with non-zero status %d\n", WEXITSTATUS(status));
-            }
         } else {
             printf("Child process did not exit normally\n");
         }
     } else {
         perror("fork");
     }
+    free(tokens);
 }
 
 // finds the target char and returns the index
