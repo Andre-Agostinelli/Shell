@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include "tokens.h"
 
 // Function to check if a character is a special token
@@ -28,6 +27,9 @@ Token* tokenize(const char* input) {
             i++; // Skip opening quote
             int j = 0;
             while (input[i] != '"' && input[i] != '\0') {
+                if (input[i] == '\\' && (input[i + 1] == '\\' || input[i + 1] == '\0')) {
+                    i++;
+                } 
                 tokens[tokenCount].type = 'W';
                 tokens[tokenCount].value[j] = input[i];
                 j++;
@@ -39,6 +41,9 @@ Token* tokenize(const char* input) {
         } else {
             int j = 0;
             while (!is_special(input[i]) && input[i] != ' ' && input[i] != '\t' && input[i] != '\n' && input[i] != '\0') {
+                if (input[i] == '\\' && (input[i + 1] == '\\' || input[i + 1] == '\0')) {
+                    i++; //skip first '\' 
+                } 
                 tokens[tokenCount].type = 'W';
                 tokens[tokenCount].value[j] = input[i];
                 j++;
